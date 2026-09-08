@@ -1,17 +1,22 @@
-node_modules/
-.expo/
-dist/
-npm-debug.*
-*.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-*.orig.*
-web-build/
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# macOS
-.DS_Store
+# production
+/build
+/.dist
+/dist
 
-# enviroment
+# environment variables (CRITICAL: Do NOT commit API keys)
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# misc
+.DS_Store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
