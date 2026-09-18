@@ -115,15 +115,23 @@ export default function Auth() {
     setIsLoading(false);
   };
 
-  React.useEffect(() => {
+  const initGoogleAuth = React.useCallback(() => {
     /* global google */
-    if (window.google) {
+    if (typeof window === "undefined" || !window.google || !window.google.accounts || !window.google.accounts.id) {
+      return false;
+    }
+    const googleDiv = document.getElementById("googleDiv");
+    if (!googleDiv) {
+      return false;
+    }
+
+    try {
       google.accounts.id.initialize({
         client_id: process.env.REACT_APP_GOOGLE_CLIENT_ID,
         callback: handleGoogle,
       });
 
-      google.accounts.id.renderButton(document.getElementById("googleDiv"), {
+      google.accounts.id.renderButton(googleDiv, {
         type: "standard",
         theme: "outline",
         size: "large",
@@ -131,11 +139,62 @@ export default function Auth() {
         shape: "pill",
         width: 280,
       });
+
       if (localStorage.getItem("token") === null) {
         google.accounts.id.prompt();
       }
+      return true;
+    } catch (e) {
+      console.error("Google button initialization error:", e);
+      return false;
     }
   }, []);
+
+  React.useEffect(() => {
+    // 1. If Google script is already loaded and ready, initialize immediately
+    if (initGoogleAuth()) {
+      return;
+    }
+
+    // 2. Poll until window.google.accounts.id becomes available (every 100ms)
+    const interval = setInterval(() => {
+      if (initGoogleAuth()) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    // 3. Attach load event to script tag in case it finishes downloading
+    const existingScript = document.querySelector(
+      'script[src="https://accounts.google.com/gsi/client"]'
+    );
+    const onLoadHandler = () => {
+      initGoogleAuth();
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener("load", onLoadHandler);
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = onLoadHandler;
+      document.head.appendChild(script);
+    }
+
+    // Stop polling after 10 seconds timeout
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+    }, 10000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+      if (existingScript) {
+        existingScript.removeEventListener("load", onLoadHandler);
+      }
+    };
+  }, [initGoogleAuth]);
 
   return (
     <Container component="main" maxWidth="xs" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', py: 2 }}>
@@ -226,6 +285,7 @@ export default function Auth() {
             display: "flex",
             justifyContent: "center",
             width: '100%',
+            minHeight: 44,
             mb: 2
           }}
         >

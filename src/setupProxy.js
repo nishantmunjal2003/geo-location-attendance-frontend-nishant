@@ -10,10 +10,15 @@ module.exports = function (app) {
     try {
       const { to, bcc, subject, htmlbody } = req.body;
 
-      const apiKey =
-        process.env.ZEPTOMAIL_API_KEY ||
-        process.env.REACT_APP_ZEPTOMAIL_API_KEY ||
-        "wSsVR611/RWkBvh4ymWrJ+c6yFlXAV/3QUws3Fb3v3GuTajL8cczkkfOBVejGPBOGDFgFjBAp+4gmxcJhjsK3NspylkCXSiF9mqRe1U4J3x17qnvhDzPX2tZlRKILokOwgRqn2NgFc4m+g==";
+      const apiKey = process.env.ZEPTOMAIL_API_KEY;
+
+      if (!apiKey) {
+        console.error("ZeptoMail Error: ZEPTOMAIL_API_KEY is not configured.");
+        return res.status(500).json({
+          error: "ZeptoMail API key is not configured in environment variables.",
+        });
+      }
+
       const apiUrl =
         process.env.ZEPTOMAIL_API_URL ||
         process.env.REACT_APP_ZEPTOMAIL_API_URL ||
@@ -117,9 +122,7 @@ module.exports = function (app) {
 
   // Health check / test config endpoint
   app.get("/api/test-email-config", (req, res) => {
-    const hasKey = Boolean(
-      process.env.ZEPTOMAIL_API_KEY || process.env.REACT_APP_ZEPTOMAIL_API_KEY
-    );
+    const hasKey = Boolean(process.env.ZEPTOMAIL_API_KEY);
     res.json({
       configured: hasKey,
       fromAddress:

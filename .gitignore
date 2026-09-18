@@ -20,3 +20,10 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Data & spreadsheets (containing sensitive PII)
+*.xlsx
+*.xls
+*.csv
+*.tsv
+!public/sample_template.xlsx

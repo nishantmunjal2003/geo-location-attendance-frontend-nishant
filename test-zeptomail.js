@@ -22,8 +22,7 @@ if (fs.existsSync(envPath)) {
 
 const apiKey =
   process.env.ZEPTOMAIL_API_KEY ||
-  envConfig.ZEPTOMAIL_API_KEY ||
-  envConfig.REACT_APP_ZEPTOMAIL_API_KEY;
+  envConfig.ZEPTOMAIL_API_KEY;
 const apiUrl =
   process.env.ZEPTOMAIL_API_URL ||
   envConfig.ZEPTOMAIL_API_URL ||

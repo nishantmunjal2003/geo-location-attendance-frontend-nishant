@@ -1,6 +1,19 @@
 import axios from "axios";
 
 /**
+ * Escapes unsafe characters for safe inclusion in HTML templates
+ */
+export const escapeHtml = (str) => {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+};
+
+/**
  * Generates an academic email template for low attendance warning
  */
 export const generateWarningEmailHtml = ({
@@ -10,9 +23,17 @@ export const generateWarningEmailHtml = ({
   instructorName,
   instructorEmail,
 }) => {
+  const safeSubject = escapeHtml(subject || "Attendance Notice");
+  const safeCourseName = escapeHtml(courseName || "Academic Course");
+  const safeInstructorName = escapeHtml(instructorName || "Course Instructor");
+  const safeInstructorEmail = escapeHtml(instructorEmail || "");
+
   const formattedBody = (bodyContent || "")
     .split("\n\n")
-    .map((paragraph) => `<p style="margin: 0 0 16px 0; line-height: 1.6; color: #334155; font-size: 15px;">${paragraph.replace(/\n/g, "<br/>")}</p>`)
+    .map((paragraph) => {
+      const safeParagraph = escapeHtml(paragraph).replace(/\n/g, "<br/>");
+      return `<p style="margin: 0 0 16px 0; line-height: 1.6; color: #334155; font-size: 15px;">${safeParagraph}</p>`;
+    })
     .join("");
 
   return `
@@ -21,7 +42,7 @@ export const generateWarningEmailHtml = ({
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${subject || "Attendance Notice"}</title>
+  <title>${safeSubject}</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8FAF9; margin: 0; padding: 24px 12px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #FFFFFF; border-radius: 12px; overflow: hidden; border: 1px solid rgba(13, 125, 112, 0.18); box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);">
@@ -35,7 +56,7 @@ export const generateWarningEmailHtml = ({
           GKVFlow Academic Notice
         </h1>
         <div style="color: #E2E8F0; font-size: 14px; margin-top: 4px;">
-          Course: <strong style="color: #FFFFFF;">${courseName || "Academic Course"}</strong>
+          Course: <strong style="color: #FFFFFF;">${safeCourseName}</strong>
         </div>
       </td>
     </tr>
@@ -75,14 +96,14 @@ export const generateWarningEmailHtml = ({
     <tr>
       <td style="background-color: #F8FAF9; border-top: 1px solid #E2E8F0; padding: 20px 24px; text-align: left;">
         <div style="color: #0F172A; font-size: 14px; font-weight: 700;">
-          ${instructorName || "Course Instructor"}
+          ${safeInstructorName}
         </div>
         <div style="color: #475569; font-size: 13px; margin-top: 2px;">
           Course Instructor • NMRIL Labs - GKV Attendance Portal
         </div>
         ${
-          instructorEmail
-            ? `<div style="color: #0D7D70; font-size: 13px; margin-top: 4px; font-weight: 600;">Instructor Email: <a href="mailto:${instructorEmail}" style="color: #0D7D70; text-decoration: underline;">${instructorEmail}</a></div>`
+          safeInstructorEmail
+            ? `<div style="color: #0D7D70; font-size: 13px; margin-top: 4px; font-weight: 600;">Instructor Email: <a href="mailto:${safeInstructorEmail}" style="color: #0D7D70; text-decoration: underline;">${safeInstructorEmail}</a></div>`
             : ""
         }
         <div style="color: #94A3B8; font-size: 11px; margin-top: 12px; border-top: 1px dashed #CBD5E1; padding-top: 8px;">

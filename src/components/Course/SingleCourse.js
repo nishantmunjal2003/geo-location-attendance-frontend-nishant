@@ -480,8 +480,8 @@ const SingleCourse = () => {
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
           <Button
-            href="/users.xlsx"
-            download="users.xlsx"
+            href="/sample_template.xlsx"
+            download="sample_student_roster.xlsx"
             variant="outlined"
             size="small"
             startIcon={<DownloadIcon />}
