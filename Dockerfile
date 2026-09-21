@@ -36,11 +36,11 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy production static files from builder stage
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Expose standard HTTP port
-EXPOSE 80
+# Expose standard HTTP and Node/React ports
+EXPOSE 80 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+# Fast, reliable health check targeting local IP directly (avoids Alpine IPv6 mismatch)
+HEALTHCHECK --interval=10s --timeout=3s --start-period=3s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/health || wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]
