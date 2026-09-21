@@ -1,0 +1,10 @@
+services:
+  frontend:
+    image: ghcr.io/nishantmunjal2003/geo-location-attendance-frontend-nishant:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: geo-location-frontend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
