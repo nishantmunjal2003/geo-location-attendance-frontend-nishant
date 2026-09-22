@@ -27,20 +27,29 @@ ENV CI=false
 # Build production assets
 RUN npm run build
 
-# Stage 2: Production Nginx Server
-FROM nginx:alpine
+# Stage 2: Production Node.js Server (handles React SPA + /api/send-email proxy)
+FROM node:20-alpine
 
-# Copy custom Nginx configuration for React SPA routing & caching
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy production static files from builder stage
-COPY --from=builder /app/build /usr/share/nginx/html
+ENV NODE_ENV=production
+ENV PORT=3000
 
-# Expose standard HTTP and Node/React ports
-EXPOSE 80 3000
+# Install Express for the production proxy/SPA server
+COPY package*.json ./
+RUN npm install express --legacy-peer-deps
 
-# Fast, reliable health check targeting local IP directly (avoids Alpine IPv6 mismatch)
-HEALTHCHECK --interval=10s --timeout=3s --start-period=3s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:80/health || wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/health || exit 1
+# Copy built React static assets from builder stage
+COPY --from=builder /app/build ./build
 
-CMD ["nginx", "-g", "daemon off;"]
+# Copy production server script
+COPY server.js ./
+
+# Expose Node.js production port
+EXPOSE 3000
+
+# Health check targeting the test endpoint
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/test-email-config || exit 1
+
+CMD ["node", "server.js"]
