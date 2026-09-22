@@ -22,6 +22,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Collapse,
+  Divider,
   FormControl,
   Grid,
   IconButton,
@@ -47,11 +49,14 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import HistoryIcon from "@mui/icons-material/History";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import { useParams, useNavigate } from "react-router-dom";
 import useAxios from "../api";
 import GlassCard from "../components/UI/GlassCard";
 import { sendZeptoMail } from "../services/emailService";
-import { addEmailLog } from "../services/emailLogService";
+import { addEmailLog, getEmailLogs, getEmailStats, exportLogsAsCSV } from "../services/emailLogService";
 import AuthContext from "../store/auth-context";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -123,6 +128,24 @@ export default function CourseAttendanceReport() {
   const [isSendingZepto, setIsSendingZepto] = React.useState(false);
   const [emailSendStatus, setEmailSendStatus] = React.useState(null); // { type: 'success' | 'error', message: '' }
   const [showAllRecipients, setShowAllRecipients] = React.useState(false);
+
+  // Email Logs panel state
+  const [logsRefresh, setLogsRefresh] = React.useState(0);
+  const [logsExpanded, setLogsExpanded] = React.useState(true);
+  const [expandedLogId, setExpandedLogId] = React.useState(null); // which row shows recipient list
+
+  // Derive course-specific email logs (re-computes on send)
+  const courseLogs = React.useMemo(() => {
+    const userId = authCtx.user?._id;
+    if (!userId) return [];
+    const allMyLogs = getEmailLogs(userId);
+    return allMyLogs.filter(
+      (l) => l.courseId === courseId || l.courseName === (course?.courseName || "")
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authCtx.user?._id, courseId, course?.courseName, logsRefresh]);
+
+  const courseLogStats = React.useMemo(() => getEmailStats(courseLogs), [courseLogs]);
 
   const isFetchingRef = React.useRef(false);
 
@@ -446,6 +469,7 @@ export default function CourseAttendanceReport() {
           recipientCount: targetEmails.length,
           status: "success",
         });
+        setLogsRefresh((r) => r + 1); // re-render the inline logs panel
       }
       // ──────────────────────────────────────────────────────────────────
       setEmailSendStatus({
@@ -1200,6 +1224,257 @@ export default function CourseAttendanceReport() {
           }}
         />
       </GlassCard>
+
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {/* Email Dispatch Logs for this Course (live — updates on send)        */}
+      {/* ─────────────────────────────────────────────────────────────────── */}
+      {(true) && (
+          <Paper
+            elevation={0}
+            sx={{
+              mt: 3,
+              borderRadius: "18px",
+              border: "1px solid rgba(13, 125, 112, 0.14)",
+              overflow: "hidden",
+              boxShadow: "0 4px 20px rgba(13, 125, 112, 0.05)",
+            }}
+          >
+            {/* Section Header */}
+            <Box
+              onClick={() => setLogsExpanded((v) => !v)}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                px: { xs: 2, sm: 3 },
+                py: 1.75,
+                cursor: "pointer",
+                background: "linear-gradient(135deg, #F8FFFE 0%, #EDFBF8 100%)",
+                borderBottom: logsExpanded ? "1px solid rgba(13, 125, 112, 0.1)" : "none",
+                "&:hover": { bgcolor: "rgba(13, 125, 112, 0.04)" },
+                transition: "background 0.2s",
+              }}
+            >
+              <Stack direction="row" alignItems="center" gap={1.5}>
+                <Box
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: "10px",
+                    background: "linear-gradient(135deg, #0D7D70 0%, #14B8A6 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 3px 10px rgba(13, 125, 112, 0.25)",
+                  }}
+                >
+                  <HistoryIcon sx={{ color: "#FFF", fontSize: "1.1rem" }} />
+                </Box>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#0F172A", lineHeight: 1.1 }}>
+                    Email Dispatch Logs
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "#64748B" }}>
+                    {courseLogs.length === 0
+                      ? "No emails sent for this course yet"
+                      : `${courseLogStats.totalSent} dispatch${courseLogStats.totalSent !== 1 ? "es" : ""} \u00b7 ${courseLogStats.totalRecipients} students notified`}
+                  </Typography>
+                </Box>
+              </Stack>
+
+              <Stack direction="row" alignItems="center" gap={1}>
+                {courseLogs.length > 0 && (
+                  <Tooltip title="Export logs as CSV">
+                    <IconButton
+                      size="small"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        exportLogsAsCSV(
+                          courseLogs,
+                          `email_logs_${course?.courseName || courseId}_${new Date().toISOString().substring(0, 10)}.csv`
+                        );
+                      }}
+                      sx={{
+                        color: "#0D7D70",
+                        bgcolor: "rgba(13, 125, 112, 0.08)",
+                        "&:hover": { bgcolor: "rgba(13, 125, 112, 0.16)" },
+                      }}
+                    >
+                      <FileDownloadIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+                <IconButton size="small" sx={{ color: "#64748B" }}>
+                  {logsExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                </IconButton>
+              </Stack>
+            </Box>
+
+            {/* Collapsible Body */}
+            <Collapse in={logsExpanded}>
+              {courseLogs.length === 0 ? (
+                <Box sx={{ textAlign: "center", py: 5, px: 2 }}>
+                  <HistoryIcon sx={{ fontSize: "2rem", color: "rgba(13, 125, 112, 0.25)", mb: 1 }} />
+                  <Typography variant="body2" sx={{ color: "#94A3B8", fontWeight: 500 }}>
+                    No email notices sent for this course yet.
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "#CBD5E1" }}>
+                    Use the "Email Defaulters" button above to send low-attendance notices.
+                  </Typography>
+                </Box>
+              ) : (
+                <Box>
+                  {/* Stat Summary Strip */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 3,
+                      px: { xs: 2, sm: 3 },
+                      py: 1.5,
+                      bgcolor: "rgba(13, 125, 112, 0.02)",
+                      borderBottom: "1px solid rgba(13, 125, 112, 0.07)",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Total Sent</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: "#0D7D70", lineHeight: 1 }}>{courseLogStats.totalSent}</Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem sx={{ borderColor: "rgba(13, 125, 112, 0.12)" }} />
+                    <Box>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Students Notified</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 800, color: "#7C3AED", lineHeight: 1 }}>{courseLogStats.totalRecipients}</Typography>
+                    </Box>
+                    <Divider orientation="vertical" flexItem sx={{ borderColor: "rgba(13, 125, 112, 0.12)" }} />
+                    <Box>
+                      <Typography variant="caption" sx={{ color: "#94A3B8", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>Last Dispatch</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "#0F172A", lineHeight: 1.2 }}>
+                        {courseLogStats.lastSent
+                          ? new Date(courseLogStats.lastSent).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                          : "\u2014"}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Log Rows */}
+                  {courseLogs.map((log, idx) => (
+                    <Box key={log.id || idx}>
+                      <Box
+                        sx={{
+                          px: { xs: 2, sm: 3 },
+                          py: 1.5,
+                          display: "flex",
+                          flexDirection: { xs: "column", sm: "row" },
+                          alignItems: { xs: "flex-start", sm: "center" },
+                          justifyContent: "space-between",
+                          gap: 1.5,
+                          "&:hover": { bgcolor: "rgba(13, 125, 112, 0.02)" },
+                          transition: "background 0.15s",
+                        }}
+                      >
+                        {/* Left: time + subject */}
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Stack direction="row" alignItems="center" gap={1} mb={0.25}>
+                            <Chip
+                              label={log.status === "success" ? "Sent" : "Failed"}
+                              size="small"
+                              sx={{
+                                height: 18,
+                                fontSize: "0.65rem",
+                                fontWeight: 700,
+                                bgcolor: log.status === "success" ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.1)",
+                                color: log.status === "success" ? "#059669" : "#DC2626",
+                              }}
+                            />
+                            <Typography variant="caption" sx={{ color: "#94A3B8" }}>
+                              {log.timestamp
+                                ? new Date(log.timestamp).toLocaleString("en-IN", {
+                                    day: "2-digit", month: "short", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit",
+                                  })
+                                : ""}
+                            </Typography>
+                          </Stack>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontWeight: 600, color: "#0F172A", fontSize: "0.85rem", wordBreak: "break-word" }}
+                          >
+                            {log.subject || "—"}
+                          </Typography>
+                        </Box>
+
+                        {/* Right: recipient count + expand */}
+                        <Stack direction="row" alignItems="center" gap={1} flexShrink={0}>
+                          <Chip
+                            size="small"
+                            label={`${log.recipientCount || 0} students`}
+                            sx={{
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              bgcolor: "rgba(13, 125, 112, 0.08)",
+                              color: "#0D7D70",
+                              height: 22,
+                            }}
+                          />
+                          {Array.isArray(log.recipientEmails) && log.recipientEmails.length > 0 && (
+                            <Tooltip title={expandedLogId === log.id ? "Hide recipients" : "Show recipients"}>
+                              <IconButton
+                                size="small"
+                                onClick={() =>
+                                  setExpandedLogId((prev) => (prev === log.id ? null : log.id))
+                                }
+                                sx={{ color: "#0D7D70", p: 0.3 }}
+                              >
+                                {expandedLogId === log.id ? (
+                                  <ExpandLessIcon fontSize="small" />
+                                ) : (
+                                  <ExpandMoreIcon fontSize="small" />
+                                )}
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                        </Stack>
+                      </Box>
+
+                      {/* Expandable recipient list */}
+                      <Collapse in={expandedLogId === log.id}>
+                        <Box
+                          sx={{
+                            mx: { xs: 2, sm: 3 },
+                            mb: 1.5,
+                            p: 1.5,
+                            bgcolor: "rgba(13, 125, 112, 0.03)",
+                            borderRadius: "10px",
+                            border: "1px solid rgba(13, 125, 112, 0.1)",
+                            maxHeight: 160,
+                            overflowY: "auto",
+                          }}
+                        >
+                          <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 700, mb: 0.5, display: "block" }}>
+                            BCC Recipients ({log.recipientEmails?.length || 0}):
+                          </Typography>
+                          {(log.recipientEmails || []).map((email, i) => (
+                            <Typography
+                              key={i}
+                              variant="caption"
+                              sx={{ display: "block", color: "#334155", fontFamily: "monospace", lineHeight: 1.7 }}
+                            >
+                              {email}
+                            </Typography>
+                          ))}
+                        </Box>
+                      </Collapse>
+
+                      {idx < courseLogs.length - 1 && (
+                        <Divider sx={{ mx: { xs: 2, sm: 3 }, borderColor: "rgba(13, 125, 112, 0.06)" }} />
+                      )}
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Collapse>
+          </Paper>
+      )}
 
       {/* Pre-drafted Warning Email Dialog */}
       <Dialog
