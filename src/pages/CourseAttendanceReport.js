@@ -1,5 +1,5 @@
 import * as React from "react";
-import { styled } from "@mui/material/styles";
+import { styled, useTheme } from "@mui/material/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell, { tableCellClasses } from "@mui/material/TableCell";
@@ -35,6 +35,7 @@ import {
   TextField,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EmailIcon from "@mui/icons-material/Email";
@@ -46,11 +47,11 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import PersonAddIcon from "@mui/icons-material/PersonAdd";
 import { useParams, useNavigate } from "react-router-dom";
 import useAxios from "../api";
 import GlassCard from "../components/UI/GlassCard";
 import { sendZeptoMail } from "../services/emailService";
+import { addEmailLog } from "../services/emailLogService";
 import AuthContext from "../store/auth-context";
 
 const StyledTableCell = styled(TableCell)(({ theme }) => ({
@@ -81,6 +82,8 @@ const StyledTableRow = styled(TableRow)(({ theme }) => ({
 }));
 
 export default function CourseAttendanceReport() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const { courseId } = useParams();
   const navigate = useNavigate();
   const Axios = useAxios();
@@ -112,10 +115,14 @@ export default function CourseAttendanceReport() {
   const [targetEmails, setTargetEmails] = React.useState([]);
   const [copiedNotification, setCopiedNotification] = React.useState(false);
   const authCtx = React.useContext(AuthContext);
+  const instructorName = authCtx.user?.name || course?.teacher?.name || "Dr. Nishant Kumar";
+  const instructorEmail =
+    authCtx.user?.email ||
+    course?.teacher?.email ||
+    (instructorName.toLowerCase().includes("nishant") ? "nishant@gkv.ac.in" : "");
   const [isSendingZepto, setIsSendingZepto] = React.useState(false);
   const [emailSendStatus, setEmailSendStatus] = React.useState(null); // { type: 'success' | 'error', message: '' }
   const [showAllRecipients, setShowAllRecipients] = React.useState(false);
-  const [customEmailInput, setCustomEmailInput] = React.useState("");
 
   const isFetchingRef = React.useRef(false);
 
@@ -345,12 +352,6 @@ export default function CourseAttendanceReport() {
     const cCode = course?.courseCode ? `(${course.courseCode})` : "";
     const totalConducted = classesList.length;
 
-    const instructorName = authCtx.user?.name || course?.teacher?.name || "Dr. Nishant Kumar";
-    const instructorEmail =
-      authCtx.user?.email ||
-      course?.teacher?.email ||
-      (instructorName.toLowerCase().includes("nishant") ? "nishant.kumar@gkv.ac.in" : "");
-
     const instructorSignoff = `Regards,\n${instructorName}\nCourse Instructor\n${
       instructorEmail ? `Email: ${instructorEmail}\n` : ""
     }NMRIL Labs - GKV Attendance Portal`;
@@ -410,14 +411,18 @@ export default function CourseAttendanceReport() {
     setIsSendingZepto(true);
     setEmailSendStatus(null);
 
-    const instructorName = authCtx.user?.name || course?.teacher?.name || "Dr. Nishant Kumar";
-    const instructorEmail =
-      authCtx.user?.email ||
-      course?.teacher?.email ||
-      (instructorName.toLowerCase().includes("nishant") ? "nishant.kumar@gkv.ac.in" : "");
+    // Send verification copy to sender (instructor) as primary recipient (To)
+    const senderTo = instructorEmail
+      ? [{ address: instructorEmail, name: instructorName }]
+      : [{ address: "noreply@gkv.ac.in", name: "GKV Attendance App" }];
+
+    const cleanedBcc = instructorEmail
+      ? targetEmails.filter((email) => email.toLowerCase() !== instructorEmail.toLowerCase())
+      : targetEmails;
 
     const res = await sendZeptoMail({
-      bcc: targetEmails,
+      to: senderTo,
+      bcc: cleanedBcc,
       subject: emailSubject,
       bodyContent: emailBody,
       courseName: course?.courseName || "Academic Course",
@@ -428,42 +433,47 @@ export default function CourseAttendanceReport() {
     setIsSendingZepto(false);
 
     if (res.success) {
+      // ── Persist to email logs ──────────────────────────────────────────
+      const userId = authCtx.user?._id;
+      if (userId) {
+        addEmailLog(userId, {
+          senderName: instructorName,
+          senderEmail: instructorEmail,
+          courseId: courseId,
+          courseName: course?.courseName || "Academic Course",
+          subject: emailSubject,
+          recipientEmails: cleanedBcc,
+          recipientCount: targetEmails.length,
+          status: "success",
+        });
+      }
+      // ──────────────────────────────────────────────────────────────────
       setEmailSendStatus({
         type: "success",
-        message: `Official attendance notice successfully sent to ${targetEmails.length} student(s) via ZeptoMail!`,
+        message: `Official attendance notice successfully sent to ${targetEmails.length} student(s)${
+          instructorEmail ? ` and a verification copy was sent to your email (${instructorEmail})` : ""
+        }!`,
       });
       setIsError(false);
-      setAlertMessage(`Dispatched notice to ${targetEmails.length} student(s) via ZeptoMail.`);
+      setAlertMessage(
+        `Dispatched notice to ${targetEmails.length} student(s)${
+          instructorEmail ? ` & verification copy to ${instructorEmail}` : ""
+        }.`
+      );
       setShowAlert(true);
     } else {
+      const rawError = res.error;
+      const errorMsg =
+        typeof rawError === "string"
+          ? rawError
+          : rawError?.message
+          ? `${rawError.message}${rawError.details ? `: ${JSON.stringify(rawError.details)}` : ""}`
+          : "Failed to dispatch email via ZeptoMail. Check network or API credentials.";
+
       setEmailSendStatus({
         type: "error",
-        message: res.error || "Failed to dispatch email via ZeptoMail. Check network or API credentials.",
+        message: errorMsg,
       });
-    }
-  };
-
-  const handleAddCustomEmail = () => {
-    const trimmed = (customEmailInput || "").trim().toLowerCase();
-    if (!trimmed || !trimmed.includes("@")) return;
-    if (!targetEmails.includes(trimmed)) {
-      setTargetEmails((prev) => [...prev, trimmed]);
-    }
-    setCustomEmailInput("");
-  };
-
-  const handleRemoveRecipient = (emailToRemove) => {
-    setTargetEmails((prev) => prev.filter((e) => e !== emailToRemove));
-  };
-
-  const handleAddTeacherEmail = () => {
-    const instructorName = authCtx.user?.name || course?.teacher?.name || "Dr. Nishant Kumar";
-    const tEmail =
-      authCtx.user?.email?.trim().toLowerCase() ||
-      course?.teacher?.email?.trim().toLowerCase() ||
-      (instructorName.toLowerCase().includes("nishant") ? "nishant.kumar@gkv.ac.in" : "");
-    if (tEmail && !targetEmails.includes(tEmail)) {
-      setTargetEmails((prev) => [tEmail, ...prev]);
     }
   };
 
@@ -1197,38 +1207,41 @@ export default function CourseAttendanceReport() {
         onClose={() => setOpenEmailModal(false)}
         maxWidth="md"
         fullWidth
+        scroll="paper"
         PaperProps={{
           sx: {
-            borderRadius: "18px",
+            borderRadius: { xs: "14px", sm: "18px" },
             border: "1px solid rgba(13, 125, 112, 0.16)",
             boxShadow: "0px 20px 50px rgba(15, 23, 42, 0.15)",
+            m: { xs: 1, sm: 2 },
+            maxHeight: { xs: "calc(100vh - 24px)", sm: "calc(100vh - 64px)" },
+            display: "flex",
+            flexDirection: "column",
           },
         }}
       >
-        <DialogTitle sx={{ pb: 1, borderBottom: "1px solid rgba(13, 125, 112, 0.1)" }}>
+        <DialogTitle sx={{ p: { xs: 1.5, sm: 2 }, pb: { xs: 1, sm: 1.5 }, borderBottom: "1px solid rgba(13, 125, 112, 0.1)" }}>
           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <EmailIcon sx={{ color: "#0D7D70" }} />
-              <Typography variant="h6" sx={{ fontWeight: 700, color: "#0F172A" }}>
+              <EmailIcon sx={{ color: "#0D7D70", fontSize: { xs: 20, sm: 24 } }} />
+              <Typography variant="h6" sx={{ fontWeight: 700, color: "#0F172A", fontSize: { xs: "1rem", sm: "1.25rem" } }}>
                 Official Low Attendance Notice
               </Typography>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-              <Chip
-                label={`${targetEmails.length} Recipients`}
-                size="small"
-                sx={{
-                  fontWeight: 700,
-                  backgroundColor: "rgba(13, 125, 112, 0.1)",
-                  color: "#0D7D70",
-                }}
-              />
-            </Box>
+            <Chip
+              label={`${targetEmails.length} Recipients`}
+              size="small"
+              sx={{
+                fontWeight: 700,
+                backgroundColor: "rgba(13, 125, 112, 0.1)",
+                color: "#0D7D70",
+              }}
+            />
           </Box>
         </DialogTitle>
 
-        <DialogContent sx={{ mt: 2 }}>
-          <Stack spacing={2.5}>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2.5 }, mt: 0.5, overflowY: "auto" }}>
+          <Stack spacing={isMobile ? 1.5 : 2.5}>
             {/* Real-time ZeptoMail Send Feedback */}
             {emailSendStatus && (
               <Alert
@@ -1243,185 +1256,131 @@ export default function CourseAttendanceReport() {
             {/* Recipients summary & Management box */}
             <Box
               sx={{
-                p: 2,
+                p: { xs: 1.5, sm: 2 },
                 borderRadius: 2.5,
                 backgroundColor: "rgba(13, 125, 112, 0.05)",
                 border: "1px solid rgba(13, 125, 112, 0.18)",
               }}
             >
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "#0D7D70",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.5,
+                    display: "block",
+                  }}
+                >
+                  Target Recipients (BCC - Student emails protected privately):
+                </Typography>
+                {instructorEmail && (
+                  <Chip
+                    label={`Sender Copy (To): ${instructorEmail}`}
+                    size="small"
+                    variant="outlined"
+                    sx={{
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      borderColor: "rgba(13, 125, 112, 0.3)",
+                      color: "#0D7D70",
+                      bgcolor: "rgba(13, 125, 112, 0.04)",
+                      height: 20,
+                    }}
+                  />
+                )}
+              </Box>
+
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 600,
+                  color: "#0F172A",
+                  mt: 0.5,
+                  wordBreak: "break-word",
+                  whiteSpace: "normal",
+                  fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                  lineHeight: 1.5,
+                }}
+              >
+                {targetEmails.length > 0 ? (
+                  <>
+                    <span>{targetEmails.length} Students Selected: </span>
+                    {showAllRecipients
+                      ? targetEmails.join(", ")
+                      : `${targetEmails.slice(0, 3).join(", ")}${targetEmails.length > 3 ? "..." : ""}`}
+                    {targetEmails.length > 3 && (
+                      <Button
+                        size="small"
+                        onClick={() => setShowAllRecipients(!showAllRecipients)}
+                        sx={{
+                          ml: 0.75,
+                          p: 0,
+                          minWidth: "auto",
+                          textTransform: "none",
+                          fontWeight: 700,
+                          color: "#0D7D70",
+                          fontSize: "0.8rem",
+                          textDecoration: "underline",
+                          verticalAlign: "baseline",
+                          "&:hover": {
+                            backgroundColor: "transparent",
+                            textDecoration: "underline",
+                          },
+                        }}
+                      >
+                        {showAllRecipients ? "Read less" : "Read more"}
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  "No recipients selected"
+                )}
+              </Typography>
+
               <Box
                 sx={{
                   display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
                   gap: 1,
-                  mb: showAllRecipients ? 1.5 : 0,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  mt: 1.5,
                 }}
               >
-                <Box>
-                  <Typography variant="caption" sx={{ color: "#0D7D70", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>
-                    Target Recipients (BCC - Student emails protected privately):
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      fontWeight: 600,
-                      color: "#0F172A",
-                      maxWidth: 550,
-                      whiteSpace: showAllRecipients ? "normal" : "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      mt: 0.25,
-                    }}
-                  >
-                    {targetEmails.length > 0
-                      ? `${targetEmails.length} Students Selected: ${targetEmails.slice(0, 3).join(", ")}${targetEmails.length > 3 ? ` + ${targetEmails.length - 3} more` : ""}`
-                      : "No recipients selected"}
-                  </Typography>
-                </Box>
-
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={() => setShowAllRecipients(!showAllRecipients)}
-                    sx={{
-                      fontSize: "0.75rem",
-                      textTransform: "none",
-                      color: "#0D7D70",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {showAllRecipients ? "Collapse List" : "View/Edit All"}
-                  </Button>
-
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ContentCopyIcon />}
-                    onClick={handleCopyEmails}
-                    sx={{
-                      borderRadius: "16px",
-                      fontSize: "0.75rem",
-                      textTransform: "none",
-                      borderColor: "rgba(13, 125, 112, 0.3)",
-                      color: "#0D7D70",
-                    }}
-                  >
-                    {copiedNotification ? "Copied!" : "Copy Emails"}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<ContentCopyIcon />}
-                    onClick={handleCopyDraft}
-                    sx={{
-                      borderRadius: "16px",
-                      fontSize: "0.75rem",
-                      textTransform: "none",
-                      borderColor: "rgba(13, 125, 112, 0.3)",
-                      color: "#0D7D70",
-                    }}
-                  >
-                    Copy Notice Text
-                  </Button>
-                </Box>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ContentCopyIcon sx={{ fontSize: "14px !important" }} />}
+                  onClick={handleCopyEmails}
+                  sx={{
+                    borderRadius: "16px",
+                    fontSize: "0.75rem",
+                    textTransform: "none",
+                    borderColor: "rgba(13, 125, 112, 0.3)",
+                    color: "#0D7D70",
+                    py: 0.25,
+                  }}
+                >
+                  {copiedNotification ? "Copied!" : "Copy Emails"}
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ContentCopyIcon sx={{ fontSize: "14px !important" }} />}
+                  onClick={handleCopyDraft}
+                  sx={{
+                    borderRadius: "16px",
+                    fontSize: "0.75rem",
+                    textTransform: "none",
+                    borderColor: "rgba(13, 125, 112, 0.3)",
+                    color: "#0D7D70",
+                    py: 0.25,
+                  }}
+                >
+                  Copy Notice Text
+                </Button>
               </Box>
-
-              {/* Expandable Recipient Chips & Custom Add Field */}
-              {showAllRecipients && (
-                <Box sx={{ pt: 1, borderTop: "1px dashed rgba(13, 125, 112, 0.2)" }}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 0.75,
-                      maxHeight: 140,
-                      overflowY: "auto",
-                      p: 1,
-                      backgroundColor: "#FFFFFF",
-                      borderRadius: 2,
-                      border: "1px solid rgba(13, 125, 112, 0.12)",
-                      mb: 1.5,
-                    }}
-                  >
-                    {targetEmails.map((email) => (
-                      <Chip
-                        key={email}
-                        label={email}
-                        size="small"
-                        onDelete={() => handleRemoveRecipient(email)}
-                        sx={{
-                          fontSize: "0.75rem",
-                          backgroundColor: "rgba(13, 125, 112, 0.08)",
-                          color: "#0D7D70",
-                          fontWeight: 500,
-                        }}
-                      />
-                    ))}
-                    {targetEmails.length === 0 && (
-                      <Typography variant="caption" sx={{ color: "#94A3B8", p: 0.5 }}>
-                        No email recipients in list. Add manually below or select students from table.
-                      </Typography>
-                    )}
-                  </Box>
-
-                  {/* Add Extra Recipient Input */}
-                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                    <TextField
-                      size="small"
-                      placeholder="Add recipient email (e.g. teacher copy, HOD, student)..."
-                      value={customEmailInput}
-                      onChange={(e) => setCustomEmailInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleAddCustomEmail();
-                        }
-                      }}
-                      sx={{
-                        flexGrow: 1,
-                        "& .MuiOutlinedInput-root": {
-                          borderRadius: 2,
-                          bgcolor: "#FFFFFF",
-                          fontSize: "0.825rem",
-                        },
-                      }}
-                    />
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<PersonAddIcon />}
-                      onClick={handleAddCustomEmail}
-                      disabled={!customEmailInput.trim()}
-                      sx={{
-                        backgroundColor: "#0D7D70",
-                        textTransform: "none",
-                        borderRadius: 2,
-                        whiteSpace: "nowrap",
-                        "&:hover": { backgroundColor: "#08564D" },
-                      }}
-                    >
-                      Add Recipient
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      onClick={handleAddTeacherEmail}
-                      sx={{
-                        borderColor: "rgba(13, 125, 112, 0.3)",
-                        color: "#0D7D70",
-                        textTransform: "none",
-                        borderRadius: 2,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      + Add My Email
-                    </Button>
-                  </Box>
-                </Box>
-              )}
             </Box>
 
             {/* Subject Field */}
@@ -1438,7 +1397,7 @@ export default function CourseAttendanceReport() {
             <TextField
               fullWidth
               multiline
-              rows={8}
+              rows={isMobile ? 5 : 8}
               label="Message Body (Official pre-drafted warning notice)"
               value={emailBody}
               onChange={(e) => setEmailBody(e.target.value)}
@@ -1450,16 +1409,12 @@ export default function CourseAttendanceReport() {
                 },
               }}
             />
-
-            <Typography variant="caption" sx={{ color: "#64748B" }}>
-              * Emails will be sent from <strong>noreply@gkv.ac.in</strong> (GKVFLow-PMS) using ZeptoMail with high deliverability.
-            </Typography>
           </Stack>
         </DialogContent>
 
         <DialogActions
           sx={{
-            p: 2.5,
+            p: { xs: 1.5, sm: 2.5 },
             borderTop: "1px solid rgba(13, 125, 112, 0.1)",
             display: "flex",
             justifyContent: "space-between",
@@ -1492,15 +1447,13 @@ export default function CourseAttendanceReport() {
               backgroundColor: "#0D7D70",
               fontWeight: 700,
               textTransform: "none",
-              px: 3.5,
+              px: { xs: 3, sm: 3.5 },
               py: 1,
               boxShadow: "0 4px 14px rgba(13, 125, 112, 0.3)",
               "&:hover": { backgroundColor: "#08564D" },
             }}
           >
-            {isSendingZepto
-              ? "Sending via ZeptoMail..."
-              : `Send via ZeptoMail (${targetEmails.length})`}
+            {isSendingZepto ? "Sending..." : "Send"}
           </Button>
         </DialogActions>
       </Dialog>

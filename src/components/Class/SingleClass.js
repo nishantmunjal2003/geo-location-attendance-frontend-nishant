@@ -1,5 +1,5 @@
 import * as React from "react";
-import { styled, alpha } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell, { tableCellClasses } from "@mui/material/TableCell";
@@ -36,8 +36,6 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import CancelIcon from "@mui/icons-material/Cancel";
 import PeopleIcon from "@mui/icons-material/People";
 import SearchOffIcon from "@mui/icons-material/SearchOff";
-import DoneAllIcon from "@mui/icons-material/DoneAll";
-import RemoveDoneIcon from "@mui/icons-material/RemoveDone";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import Switch from "@mui/material/Switch";
 import DeleteForeverIcon from "@mui/icons-material/DeleteForever";
@@ -103,10 +101,18 @@ const StyledTableCell = styled(TableCell)(({ theme }) => ({
     fontWeight: 700,
     fontSize: 14,
     borderBottom: "2px solid rgba(13, 125, 112, 0.16)",
+    [theme.breakpoints.down("md")]: {
+      padding: "10px 6px",
+      fontSize: 12,
+    },
   },
   [`&.${tableCellClasses.body}`]: {
     fontSize: 14,
     color: "#0F172A",
+    [theme.breakpoints.down("md")]: {
+      padding: "8px 6px",
+      fontSize: 13,
+    },
   },
 }));
 
@@ -128,7 +134,7 @@ const SingleCourse = () => {
   const Axios = useAxios();
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const { classId } = useParams();
 
   const [students, setStudents] = React.useState([]);
@@ -137,7 +143,6 @@ const SingleCourse = () => {
   const [alertMessage, setAlertMessage] = React.useState(null);
   const [isError, setIsError] = React.useState(false);
   const [isLoaded, setIsLoaded] = React.useState(false);
-  const [isBulkUpdating, setIsBulkUpdating] = React.useState(false);
   const [showDeleteModal, setShowDeleteModal] = React.useState(false);
 
   // Search, Filter & Sort state
@@ -202,44 +207,6 @@ const SingleCourse = () => {
       setIsError(true);
       setShowAlert(true);
       setAlertMessage(err.response?.data?.message || "Failed to update attendance");
-    }
-  };
-
-  const handleBulkUpdate = async (present) => {
-    const targetStudents = filteredStudents;
-    if (!targetStudents.length) return;
-
-    setIsBulkUpdating(true);
-    const targetIds = new Set(targetStudents.map((s) => s._id));
-
-    // Optimistically update state
-    setStudents((prev) =>
-      prev.map((s) => (targetIds.has(s._id) ? { ...s, present } : s))
-    );
-
-    try {
-      const payload = targetStudents.map((s) => ({ _id: s._id, present }));
-      const res = await Axios({
-        method: "put",
-        url: `/class/${classId}`,
-        data: { students: payload },
-      });
-      setIsError(false);
-      setShowAlert(true);
-      setAlertMessage(
-        res.data.message ||
-          `Marked ${targetStudents.length} student${targetStudents.length === 1 ? "" : "s"} as ${
-            present ? "Present" : "Absent"
-          }`
-      );
-    } catch (err) {
-      // Re-fetch accurate state on failure
-      getClass();
-      setIsError(true);
-      setShowAlert(true);
-      setAlertMessage(err.response?.data?.message || "Failed to bulk update attendance");
-    } finally {
-      setIsBulkUpdating(false);
     }
   };
 
@@ -567,14 +534,11 @@ const SingleCourse = () => {
             </Box>
           </Box>
 
-          {/* Secondary bar: Active counts & Bulk Actions */}
+          {/* Secondary bar: Active counts */}
           <Box
             sx={{
               display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              alignItems: { xs: "flex-start", sm: "center" },
-              justifyContent: "space-between",
-              gap: 1.5,
+              alignItems: "center",
               pt: 0.5,
             }}
           >
@@ -584,42 +548,6 @@ const SingleCourse = () => {
               {searchTerm && ` for "${searchTerm}"`}
               {statusFilter !== "all" && ` (${statusFilter})`}
             </Typography>
-
-            {/* Bulk Mark Options */}
-            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-              <Button
-                size="small"
-                variant="outlined"
-                color="success"
-                disabled={isBulkUpdating || filteredStudents.length === 0}
-                startIcon={<DoneAllIcon />}
-                onClick={() => handleBulkUpdate(true)}
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 600,
-                  bgcolor: "rgba(255, 255, 255, 0.7)",
-                  borderRadius: 1.5,
-                }}
-              >
-                Mark {hasActiveFilters ? "Filtered" : "All"} Present
-              </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                color="error"
-                disabled={isBulkUpdating || filteredStudents.length === 0}
-                startIcon={<RemoveDoneIcon />}
-                onClick={() => handleBulkUpdate(false)}
-                sx={{
-                  textTransform: "none",
-                  fontWeight: 600,
-                  bgcolor: "rgba(255, 255, 255, 0.7)",
-                  borderRadius: 1.5,
-                }}
-              >
-                Mark {hasActiveFilters ? "Filtered" : "All"} Absent
-              </Button>
-            </Box>
           </Box>
         </Stack>
       </GlassCard>
@@ -629,15 +557,15 @@ const SingleCourse = () => {
         component={Paper}
         sx={{
           borderRadius: 2.5,
-          overflow: "hidden",
+          overflowX: "auto",
           boxShadow: "0px 10px 30px rgba(0, 0, 0, 0.08)",
         }}
       >
-        <Table sx={{ minWidth: 320 }} aria-label="student attendance table">
+        <Table sx={{ minWidth: 300 }} aria-label="student attendance table">
           <TableHead>
             <TableRow>
-              <StyledTableCell width={70}>S.No.</StyledTableCell>
-              <StyledTableCell>
+              <StyledTableCell sx={{ width: { xs: 42, md: 70 }, px: { xs: 0.75, md: 2 } }}>S.No.</StyledTableCell>
+              <StyledTableCell sx={{ px: { xs: 1, md: 2 } }}>
                 <TableSortLabel
                   active={orderBy === "name"}
                   direction={orderBy === "name" ? order : "asc"}
@@ -646,16 +574,21 @@ const SingleCourse = () => {
                   Student Name
                 </TableSortLabel>
               </StyledTableCell>
-              <StyledTableCell align="right">
+              <StyledTableCell align="right" sx={{ px: { xs: 0.75, md: 2 } }}>
                 <TableSortLabel
                   active={orderBy === "registrationNo"}
                   direction={orderBy === "registrationNo" ? order : "asc"}
                   onClick={() => handleRequestSort("registrationNo")}
                 >
-                  Registration Number
+                  <Box component="span" sx={{ display: { xs: "none", md: "inline" } }}>
+                    Registration Number
+                  </Box>
+                  <Box component="span" sx={{ display: { xs: "inline", md: "none" } }}>
+                    Reg. No.
+                  </Box>
                 </TableSortLabel>
               </StyledTableCell>
-              <StyledTableCell align="right">
+              <StyledTableCell align="center" sx={{ width: { xs: 58, md: 160 }, px: { xs: 0.75, md: 2 } }}>
                 <TableSortLabel
                   active={orderBy === "present"}
                   direction={orderBy === "present" ? order : "asc"}
@@ -670,26 +603,54 @@ const SingleCourse = () => {
             {filteredStudents.length > 0 ? (
               filteredStudents.map((row, index) => (
                 <StyledTableRow key={row._id}>
-                  <StyledTableCell width={70} component="th" scope="row">
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: "text.secondary" }}>
+                  <StyledTableCell
+                    component="th"
+                    scope="row"
+                    sx={{ width: { xs: 42, md: 70 }, px: { xs: 0.75, md: 2 } }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        color: "text.secondary",
+                        fontSize: { xs: "0.75rem", md: "0.875rem" },
+                      }}
+                    >
                       {index + 1}.
                     </Typography>
                   </StyledTableCell>
-                  <StyledTableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                  <StyledTableCell sx={{ px: { xs: 1, md: 2 } }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontWeight: 600,
+                        color: "text.primary",
+                        fontSize: { xs: "0.8rem", md: "0.875rem" },
+                        wordBreak: "break-word",
+                      }}
+                    >
                       {row.name}
                     </Typography>
                   </StyledTableCell>
-                  <StyledTableCell align="right">
-                    <Typography variant="body2" sx={{ fontFamily: "monospace", letterSpacing: 0.5 }}>
+                  <StyledTableCell align="right" sx={{ px: { xs: 0.75, md: 2 } }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        fontFamily: "monospace",
+                        letterSpacing: { xs: 0, md: 0.5 },
+                        fontSize: { xs: "0.75rem", md: "0.875rem" },
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {row.registrationNo}
                     </Typography>
                   </StyledTableCell>
-                  <StyledTableCell align="right">
+                  <StyledTableCell align="center" sx={{ width: { xs: 58, md: 160 }, px: { xs: 0.75, md: 2 } }}>
                     <Box
                       sx={{
                         display: "inline-flex",
                         alignItems: "center",
+                        justifyContent: "center",
                         gap: 1.5,
                       }}
                     >
@@ -699,6 +660,7 @@ const SingleCourse = () => {
                         color={row.present ? "success" : "default"}
                         variant={row.present ? "filled" : "outlined"}
                         sx={{
+                          display: { xs: "none", md: "inline-flex" },
                           minWidth: 68,
                           fontWeight: 600,
                           fontSize: "0.75rem",

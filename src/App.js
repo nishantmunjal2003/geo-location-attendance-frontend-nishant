@@ -19,6 +19,7 @@ import ProfilePage from "./pages/ProfilePage";
 import ArchivedCourses from "./components/Course/ArchivedCourses";
 import MainLayout from "./components/Layout/MainLayout";
 import CourseAttendanceReport from "./pages/CourseAttendanceReport";
+import EmailLogsPage from "./pages/EmailLogsPage";
 
 const App = () => {
   const authCtx = useContext(AuthContext);
@@ -150,6 +151,24 @@ const App = () => {
       element: authCtx.isLoggedIn ? (
         <MainLayout navbar={<Navbar />}>
           <ArchivedCourses />
+        </MainLayout>
+      ) : (
+        <Auth />
+      ),
+    },
+    {
+      path: "email-logs",
+      element: authCtx.isLoggedIn ? (
+        <MainLayout
+          navbar={
+            authCtx.user?.role === "admin" ? (
+              <AdminNavbar setSearchTerm={setSearchTerm} />
+            ) : (
+              <Navbar />
+            )
+          }
+        >
+          <EmailLogsPage />
         </MainLayout>
       ) : (
         <Auth />

@@ -1,5 +1,24 @@
 const https = require("https");
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+
+function getLiveApiKey() {
+  try {
+    const envPath = path.resolve(__dirname, "../.env");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const match = content.match(/^ZEPTOMAIL_API_KEY\s*=\s*(.*)$/m);
+      if (match && match[1]) {
+        const key = match[1].trim().replace(/^['"]|['"]$/g, "");
+        if (key && !key.includes("your_new_zeptomail")) {
+          return key;
+        }
+      }
+    }
+  } catch (e) {}
+  return process.env.ZEPTOMAIL_API_KEY;
+}
 
 module.exports = function (app) {
   // Middleware to parse JSON bodies for email requests
@@ -10,7 +29,7 @@ module.exports = function (app) {
     try {
       const { to, bcc, subject, htmlbody } = req.body;
 
-      const apiKey = process.env.ZEPTOMAIL_API_KEY;
+      const apiKey = getLiveApiKey();
 
       if (!apiKey) {
         console.error("ZeptoMail Error: ZEPTOMAIL_API_KEY is not configured.");
@@ -122,7 +141,8 @@ module.exports = function (app) {
 
   // Health check / test config endpoint
   app.get("/api/test-email-config", (req, res) => {
-    const hasKey = Boolean(process.env.ZEPTOMAIL_API_KEY);
+    const key = getLiveApiKey();
+    const hasKey = Boolean(key && !key.includes("your_new_zeptomail"));
     res.json({
       configured: hasKey,
       fromAddress:

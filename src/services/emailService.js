@@ -181,11 +181,26 @@ export const sendZeptoMail = async ({
     };
   } catch (error) {
     console.error("sendZeptoMail error:", error);
-    const message =
-      error.response?.data?.error ||
-      error.response?.data?.message ||
-      error.message ||
-      "Failed to send email via ZeptoMail";
+    let message = "Failed to send email via ZeptoMail";
+    const errData = error.response?.data?.error || error.response?.data;
+    if (errData) {
+      if (typeof errData === "string") {
+        message = errData;
+      } else if (errData.message) {
+        message = errData.message;
+        if (Array.isArray(errData.details) && errData.details.length > 0) {
+          const detailMsg = errData.details
+            .map((d) => d.message || JSON.stringify(d))
+            .join(", ");
+          message = `${message}: ${detailMsg}`;
+        }
+      } else {
+        message = JSON.stringify(errData);
+      }
+    } else if (error.message) {
+      message = error.message;
+    }
+
     return {
       success: false,
       error: message,

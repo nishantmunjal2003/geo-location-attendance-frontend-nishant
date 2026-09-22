@@ -19,6 +19,8 @@ import Chip from "@mui/material/Chip";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import LogoutIcon from "@mui/icons-material/Logout";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import HistoryIcon from "@mui/icons-material/History";
+import Button from "@mui/material/Button";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../../store/auth-context";
 
@@ -129,6 +131,25 @@ export default function AdminNavbar({ setSearchTerm }) {
               inputProps={{ "aria-label": "search" }}
             />
           </Search>
+          {/* Email Logs quick link for Admin */}
+          <Button
+            onClick={() => navigate("/email-logs")}
+            startIcon={<HistoryIcon sx={{ fontSize: "1rem !important" }} />}
+            size="small"
+            sx={{
+              ml: 1,
+              display: { xs: "none", md: "flex" },
+              textTransform: "none",
+              fontWeight: 600,
+              color: "#0D7D70",
+              borderRadius: "20px",
+              px: 2,
+              border: "1px solid rgba(13, 125, 112, 0.2)",
+              "&:hover": { bgcolor: "rgba(13, 125, 112, 0.06)", borderColor: "#0D7D70" },
+            }}
+          >
+            Email Logs
+          </Button>
           <Box sx={{ flexGrow: 1 }} />
           <Box sx={{ flexGrow: 0 }}>
             {/* Attractive Interactive Profile Pill Button */}

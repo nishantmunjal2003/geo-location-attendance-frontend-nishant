@@ -19,6 +19,7 @@ import Chip from "@mui/material/Chip";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import LogoutIcon from "@mui/icons-material/Logout";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import HistoryIcon from "@mui/icons-material/History";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../../store/auth-context";
 import { useTheme } from "@mui/material/styles";
@@ -178,6 +179,24 @@ const Navbar = () => {
                   <Typography sx={{ fontWeight: 600, fontSize: "0.9rem" }}>Archived Classes</Typography>
                 </MenuItem>
               )}
+              {authCtx.user.role === "teacher" && (
+                <MenuItem
+                  onClick={() => {
+                    setAnchorElNav(null);
+                    navigate("/email-logs");
+                  }}
+                  sx={{
+                    borderRadius: "10px",
+                    py: 1,
+                    "&:hover": { backgroundColor: "rgba(13, 125, 112, 0.08)", color: "#0D7D70" },
+                  }}
+                >
+                  <ListItemIcon sx={{ minWidth: 28 }}>
+                    <HistoryIcon sx={{ fontSize: "1rem", color: "#0D7D70" }} />
+                  </ListItemIcon>
+                  <Typography sx={{ fontWeight: 600, fontSize: "0.9rem" }}>Email Logs</Typography>
+                </MenuItem>
+              )}
             </Menu>
           </Box>
           <Box
@@ -228,6 +247,15 @@ const Navbar = () => {
                 sx={{ my: 2, color: "text.primary", display: "block", fontWeight: 600 }}
               >
                 Archived Classes
+              </Button>
+            )}
+            {authCtx.user.role === "teacher" && (
+              <Button
+                onClick={() => navigate("/email-logs")}
+                startIcon={<HistoryIcon sx={{ fontSize: "1rem !important" }} />}
+                sx={{ my: 2, color: "text.primary", display: "block", fontWeight: 600 }}
+              >
+                Email Logs
               </Button>
             )}
           </Box>
